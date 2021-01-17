@@ -1,482 +1,236 @@
-import { nanoid } from 'nanoid/non-secure';
-import BaseRouter from './BaseRouter';
-import type {
-  NavigationState,
-  CommonNavigationAction,
-  Router,
-  DefaultRouterOptions,
-  Route,
-  ParamListBase,
-} from './types';
+import React, {memo, ReactNode, useEffect, useRef, useState} from 'react';
+import {
+	Animated,
+	RefreshControl,
+	ScrollView,
+	StatusBar,
+	Text,
+	TouchableOpacity,
+	View
+} from 'react-native';
+import {useNavigation} from '@react-navigation/native';
+import {scaledFontSize, scaledHeight, scaledWidth} from 'utils';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {Icon} from 'components/icon';
+import {COLORS, FONTS} from 'config/constants';
+import {FullActivityIndicator} from 'components/fullActivityIndicator';
+import {ImagesOverlayContainer} from 'components/overlays';
+import {useSelector} from 'react-redux';
+import {SWText} from 'components/swText';
+import {AppState} from 'utils/store';
+import {
+	HeaderImage,
+	HotelHeaderImage,
+	HeaderAbsoluteImage,
+	HeaderImageContainer,
+	HeaderText
+} from '../atoms';
 
-export type StackActionType =
-  | {
-      type: 'REPLACE';
-      payload: { name: string; key?: string | undefined; params?: object };
-      source?: string;
-      target?: string;
-    }
-  | {
-      type: 'PUSH';
-      payload: { name: string; key?: string | undefined; params?: object };
-      source?: string;
-      target?: string;
-    }
-  | {
-      type: 'POP';
-      payload: { count: number };
-      source?: string;
-      target?: string;
-    }
-  | {
-      type: 'POP_TO_TOP';
-      source?: string;
-      target?: string;
-    };
+export default memo(
+	({
+		imageUUID,
+		headerTitle = '',
+		isRefreshing,
+		onRefresh,
+		onPress,
+		onSharePress,
+		galleryCount,
+		share,
+		children,
+		isHotel,
+		scrollViewRef
+	}: {
+		imageUUID: string;
+		headerTitle?: string;
+		isRefreshing: boolean;
+		onRefresh: () => void;
+		children: ReactNode;
+		galleryCount?: number;
+		share?: boolean;
+		onPress?: () => void;
+		onSharePress?: () => void;
+		isHotel?: boolean;
+		scrollViewRef?: any;
+	}) => {
+		const [scrollValue] = useState(new Animated.Value(0));
+		const navigation = useNavigation<any>();
+		const showingOpacity = scrollValue.interpolate({
+			inputRange: [-scaledWidth(1000), scaledWidth(250)],
+			outputRange: [scaledWidth(1500), scaledWidth(100)],
+			extrapolate: 'clamp'
+		});
+		const headerBackgroundColor = scrollValue.interpolate({
+			inputRange: [scaledWidth(150), scaledWidth(250)],
+			outputRange: ['rgba(0,0,0,0)', 'rgba(92, 195, 238,1)'],
+			extrapolate: 'clamp'
+		});
+		const headerTitleOpacity = scrollValue.interpolate({
+			inputRange: [scaledWidth(150), scaledWidth(250)],
+			outputRange: [0, 1],
+			extrapolate: 'clamp'
+		});
+		useEffect(() => {
+			navigation.setOptions({
+				headerBackground: () => (
+					<Animated.View
+						style={{
+							flex: 1,
+							backgroundColor: headerBackgroundColor
+						}}
+					/>
+				),
+				headerTitle: () => (
+					<Animated.View
+						style={{
+							opacity: headerTitleOpacity
+						}}>
+						<HeaderText>{headerTitle}</HeaderText>
+					</Animated.View>
+				)
+			});
+		}, [navigation, headerBackgroundColor, headerTitleOpacity, headerTitle]);
+		const insets = useSafeAreaInsets();
 
-export type StackRouterOptions = DefaultRouterOptions;
+		const uploadIds = useSelector((state: AppState) => state.post.uploadIds);
+		const type = useSelector((state: AppState) => state.post.type);
+		const scrollViewRefLocal = useRef<ScrollView>(null);
+		return (
+			<View style={{flex: 1, backgroundColor: COLORS.GREY_BACKGROUND}}>
+				<StatusBar
+					translucent
+					barStyle="light-content"
+					backgroundColor="transparent"
+				/>
+				<FullActivityIndicator animating={isRefreshing} />
+				<Animated.ScrollView
+					keyboardShouldPersistTaps="handled"
+					removeClippedSubviews
+					showsVerticalScrollIndicator={false}
+					scrollEventThrottle={1}
+					ref={scrollViewRef ?? scrollViewRefLocal}
+					style={{
+						marginBottom: insets.bottom
+					}}
+					onScroll={Animated.event(
+						[
+							{
+								nativeEvent: {
+									contentOffset: {
+										y: scrollValue
+									}
+								}
+							}
+						],
+						{
+							useNativeDriver: false
+						}
+					)}
+					refreshControl={
+						<RefreshControl
+							refreshing={false}
+							onRefresh={() => {
+								onRefresh();
+							}}
+						/>
+					}>
+					<TouchableOpacity
+						onPress={() => {
+							if (onPress) onPress();
+						}}
+						style={{
+							height: scaledWidth(300)
+						}}>
+						{galleryCount !== undefined && galleryCount > 0 && (
+							<TouchableOpacity
+								onPress={() => {
+									if (onPress) onPress();
+								}}
+								style={{
+									position: 'absolute',
+									top: Math.min(
+										scaledHeight(90),
+										scaledHeight(70) + insets.top
+									),
+									start: scaledWidth(10),
+									backgroundColor: 'rgba(7,7,7,0.2)',
+									borderRadius: scaledWidth(10),
+									padding: scaledWidth(5),
+									flexDirection: 'row'
+								}}>
+								<Icon
+									iconName="gallery"
+									width={scaledWidth(25)}
+									aspectRatio={1}
+								/>
+								<Text
+									style={{
+										color: 'white',
+										marginStart: scaledWidth(5),
+										fontSize: scaledFontSize(15),
+										fontFamily: FONTS.MEDIUM
+									}}>
+									({galleryCount})
+								</Text>
+							</TouchableOpacity>
+						)}
+						{share && (
+							<TouchableOpacity
+								onPress={() => {
+									if (onSharePress) onSharePress();
+								}}
+								style={{
+									position: 'absolute',
+									top: Math.min(
+										scaledHeight(90),
+										scaledHeight(70) + insets.top
+									),
+									end: scaledWidth(10),
+									backgroundColor: 'rgba(7,7,7,0.2)',
+									borderRadius: scaledWidth(10),
+									padding: scaledWidth(5),
+									flexDirection: 'row'
+								}}>
+								<Icon
+									iconName="share_white"
+									width={scaledWidth(25)}
+									aspectRatio={1}
+								/>
+							</TouchableOpacity>
+						)}
+					</TouchableOpacity>
+					{children}
+				</Animated.ScrollView>
+				{uploadIds.length > 0 && (
+					<View
+						style={{
+							height: scaledHeight(30),
+							width: '100%',
+							paddingHorizontal: scaledWidth(10),
+							backgroundColor: COLORS.MAIN_COLOR,
+							flexDirection: 'row',
+							alignItems: 'center'
+						}}>
+						<SWText color="white">لديك {type} قيد الرفع الرجاء الانتظار</SWText>
+					</View>
+				)}
+				<HeaderImageContainer
+					style={{
+						height: showingOpacity
+					}}>
+					{imageUUID && imageUUID.indexOf('http') !== -1 && (
+						<HeaderAbsoluteImage imageUUID={imageUUID} />
+					)}
+					{!isHotel && !(imageUUID && imageUUID.indexOf('http') !== -1) && (
+						<HeaderImage imageUUID={imageUUID} />
+					)}
+					{isHotel && !(imageUUID && imageUUID.indexOf('http') !== -1) && (
+						<HotelHeaderImage imageUUID={imageUUID} />
+					)}
 
-export type StackNavigationState<
-  ParamList extends ParamListBase
-> = NavigationState<ParamList> & {
-  /**
-   * Type of the router, in this case, it's stack.
-   */
-  type: 'stack';
-};
-
-export type StackActionHelpers<ParamList extends ParamListBase> = {
-  /**
-   * Replace the current route with a new one.
-   *
-   * @param name Route name of the new route.
-   * @param [params] Params object for the new route.
-   */
-  replace<RouteName extends keyof ParamList>(
-    ...args: undefined extends ParamList[RouteName]
-      ? [RouteName] | [RouteName, ParamList[RouteName]]
-      : [RouteName, ParamList[RouteName]]
-  ): void;
-
-  /**
-   * Push a new screen onto the stack.
-   *
-   * @param name Name of the route for the tab.
-   * @param [params] Params object for the route.
-   */
-  push<RouteName extends keyof ParamList>(
-    ...args: undefined extends ParamList[RouteName]
-      ? [RouteName] | [RouteName, ParamList[RouteName]]
-      : [RouteName, ParamList[RouteName]]
-  ): void;
-
-  /**
-   * Pop a screen from the stack.
-   */
-  pop(count?: number): void;
-
-  /**
-   * Pop to the first route in the stack, dismissing all other screens.
-   */
-  popToTop(): void;
-};
-
-export const StackActions = {
-  replace(name: string, params?: object): StackActionType {
-    return { type: 'REPLACE', payload: { name, params } };
-  },
-  push(name: string, params?: object): StackActionType {
-    return { type: 'PUSH', payload: { name, params } };
-  },
-  pop(count: number = 1): StackActionType {
-    return { type: 'POP', payload: { count } };
-  },
-  popToTop(): StackActionType {
-    return { type: 'POP_TO_TOP' };
-  },
-};
-
-export default function StackRouter(options: StackRouterOptions) {
-  const router: Router<
-    StackNavigationState<ParamListBase>,
-    CommonNavigationAction | StackActionType
-  > = {
-    ...BaseRouter,
-
-    type: 'stack',
-
-    getInitialState({ routeNames, routeParamList }) {
-      const initialRouteName =
-        options.initialRouteName !== undefined &&
-        routeNames.includes(options.initialRouteName)
-          ? options.initialRouteName
-          : routeNames[0];
-
-      return {
-        stale: false,
-        type: 'stack',
-        key: `stack-${nanoid()}`,
-        index: 0,
-        routeNames,
-        routes: [
-          {
-            key: `${initialRouteName}-${nanoid()}`,
-            name: initialRouteName,
-            params: routeParamList[initialRouteName],
-          },
-        ],
-      };
-    },
-
-    getRehydratedState(partialState, { routeNames, routeParamList }) {
-      let state = partialState;
-
-      if (state.stale === false) {
-        return state;
-      }
-
-      const routes = state.routes
-        .filter((route) => routeNames.includes(route.name))
-        .map(
-          (route) =>
-            ({
-              ...route,
-              key: route.key || `${route.name}-${nanoid()}`,
-              params:
-                routeParamList[route.name] !== undefined
-                  ? {
-                      ...routeParamList[route.name],
-                      ...route.params,
-                    }
-                  : route.params,
-            } as Route<string>)
-        );
-
-      if (routes.length === 0) {
-        const initialRouteName =
-          options.initialRouteName !== undefined
-            ? options.initialRouteName
-            : routeNames[0];
-
-        routes.push({
-          key: `${initialRouteName}-${nanoid()}`,
-          name: initialRouteName,
-          params: routeParamList[initialRouteName],
-        });
-      }
-
-      return {
-        stale: false,
-        type: 'stack',
-        key: `stack-${nanoid()}`,
-        index: routes.length - 1,
-        routeNames,
-        routes,
-      };
-    },
-
-    getStateForRouteNamesChange(state, { routeNames, routeParamList }) {
-      const routes = state.routes.filter((route) =>
-        routeNames.includes(route.name)
-      );
-
-      if (routes.length === 0) {
-        const initialRouteName =
-          options.initialRouteName !== undefined &&
-          routeNames.includes(options.initialRouteName)
-            ? options.initialRouteName
-            : routeNames[0];
-
-        routes.push({
-          key: `${initialRouteName}-${nanoid()}`,
-          name: initialRouteName,
-          params: routeParamList[initialRouteName],
-        });
-      }
-
-      return {
-        ...state,
-        routeNames,
-        routes,
-        index: Math.min(state.index, routes.length - 1),
-      };
-    },
-
-    getStateForRouteFocus(state, key) {
-      const index = state.routes.findIndex((r) => r.key === key);
-
-      if (index === -1 || index === state.index) {
-        return state;
-      }
-
-      return {
-        ...state,
-        index,
-        routes: state.routes.slice(0, index + 1),
-      };
-    },
-
-    getStateForAction(state, action, options) {
-      const { routeParamList } = options;
-
-      switch (action.type) {
-        case 'REPLACE': {
-          const index =
-            action.target === state.key && action.source
-              ? state.routes.findIndex((r) => r.key === action.source)
-              : state.index;
-
-          if (index === -1) {
-            return null;
-          }
-
-          const { name, key, params } = action.payload;
-
-          if (!state.routeNames.includes(name)) {
-            return null;
-          }
-
-          return {
-            ...state,
-            routes: state.routes.map((route, i) =>
-              i === index
-                ? {
-                    key: key !== undefined ? key : `${name}-${nanoid()}`,
-                    name,
-                    params:
-                      routeParamList[name] !== undefined
-                        ? {
-                            ...routeParamList[name],
-                            ...params,
-                          }
-                        : params,
-                  }
-                : route
-            ),
-          };
-        }
-
-        case 'PUSH':
-          if (state.routeNames.includes(action.payload.name)) {
-            const getId = options.routeGetIdList[action.payload.name];
-            const id = getId?.({ params: action.payload.params });
-
-            const route =
-              action.payload.name && action.payload.key
-                ? state.routes.find(
-                    (route) =>
-                      route.name === action.payload.name &&
-                      route.key === action.payload.key
-                  )
-                : id
-                ? state.routes.find(
-                    (route) => id === getId?.({ params: route.params })
-                  )
-                : undefined;
-
-            let routes: Route<string>[];
-
-            if (route) {
-              routes = state.routes.filter((r) => r.key !== route.key);
-              routes.push({
-                ...route,
-                params:
-                  action.payload.params !== undefined
-                    ? {
-                        ...route.params,
-                        ...action.payload.params,
-                      }
-                    : route.params,
-              });
-            } else {
-              routes = [
-                ...state.routes,
-                {
-                  key:
-                    action.payload.key ?? `${action.payload.name}-${nanoid()}`,
-                  name: action.payload.name,
-                  params:
-                    routeParamList[action.payload.name] !== undefined
-                      ? {
-                          ...routeParamList[action.payload.name],
-                          ...action.payload.params,
-                        }
-                      : action.payload.params,
-                },
-              ];
-            }
-
-            return {
-              ...state,
-              index: routes.length - 1,
-              routes,
-            };
-          }
-
-          return null;
-
-        case 'POP': {
-          const index =
-            action.target === state.key && action.source
-              ? state.routes.findIndex((r) => r.key === action.source)
-              : state.index;
-
-          if (index > 0) {
-            const count = Math.max(index - action.payload.count + 1, 1);
-            const routes = state.routes
-              .slice(0, count)
-              .concat(state.routes.slice(index + 1));
-
-            return {
-              ...state,
-              index: routes.length - 1,
-              routes,
-            };
-          }
-
-          return null;
-        }
-
-        case 'POP_TO_TOP':
-          return router.getStateForAction(
-            state,
-            {
-              type: 'POP',
-              payload: { count: state.routes.length - 1 },
-            },
-            options
-          );
-
-        case 'NAVIGATE':
-          if (
-            action.payload.key ||
-            (action.payload.name &&
-              state.routeNames.includes(action.payload.name))
-          ) {
-            // If the route already exists, navigate to that
-            let index = -1;
-
-            const getId =
-              // `getId` and `key` can't be used together
-              action.payload.key === undefined &&
-              action.payload.name !== undefined
-                ? options.routeGetIdList[action.payload.name]
-                : undefined;
-            const id = getId?.({ params: action.payload.params });
-
-            if (id) {
-              index = state.routes.findIndex(
-                (route) => id === getId?.({ params: route.params })
-              );
-            } else if (
-              (state.routes[state.index].name === action.payload.name &&
-                action.payload.key === undefined) ||
-              state.routes[state.index].key === action.payload.key
-            ) {
-              index = state.index;
-            } else {
-              for (let i = state.routes.length - 1; i >= 0; i--) {
-                if (
-                  (state.routes[i].name === action.payload.name &&
-                    action.payload.key === undefined) ||
-                  state.routes[i].key === action.payload.key
-                ) {
-                  index = i;
-                  break;
-                }
-              }
-            }
-
-            if (
-              index === -1 &&
-              action.payload.key &&
-              action.payload.name === undefined
-            ) {
-              return null;
-            }
-
-            if (index === -1 && action.payload.name !== undefined) {
-              const routes = [
-                ...state.routes,
-                {
-                  key:
-                    action.payload.key ?? `${action.payload.name}-${nanoid()}`,
-                  name: action.payload.name,
-                  params:
-                    routeParamList[action.payload.name] !== undefined
-                      ? {
-                          ...routeParamList[action.payload.name],
-                          ...action.payload.params,
-                        }
-                      : action.payload.params,
-                },
-              ];
-
-              return {
-                ...state,
-                routes,
-                index: routes.length - 1,
-              };
-            }
-
-            const route = state.routes[index];
-
-            let params;
-
-            if (action.payload.merge === false) {
-              params =
-                routeParamList[route.name] !== undefined
-                  ? {
-                      ...routeParamList[route.name],
-                      ...action.payload.params,
-                    }
-                  : action.payload.params;
-            } else {
-              params = action.payload.params
-                ? {
-                    ...route.params,
-                    ...action.payload.params,
-                  }
-                : route.params;
-            }
-
-            return {
-              ...state,
-              index,
-              routes: [
-                ...state.routes.slice(0, index),
-                params !== route.params
-                  ? { ...route, params }
-                  : state.routes[index],
-              ],
-            };
-          }
-
-          return null;
-
-        case 'GO_BACK':
-          if (state.index > 0) {
-            return router.getStateForAction(
-              state,
-              {
-                type: 'POP',
-                payload: { count: 1 },
-                target: action.target,
-                source: action.source,
-              },
-              options
-            );
-          }
-
-          return null;
-
-        default:
-          return BaseRouter.getStateForAction(state, action);
-      }
-    },
-
-    actionCreators: StackActions,
-  };
-
-  return router;
-}
+					<ImagesOverlayContainer />
+					{/* <OverlayContainer /> */}
+				</HeaderImageContainer>
+			</View>
+		);
+	}
+);
